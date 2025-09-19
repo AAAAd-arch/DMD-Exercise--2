@@ -1,0 +1,251 @@
+DROP TABLE IF EXISTS treatments CASCADE;
+DROP TABLE IF EXISTS medication_stock CASCADE;
+DROP TABLE IF EXISTS nurses CASCADE;
+DROP TABLE IF EXISTS patients CASCADE;
+DROP TABLE IF EXISTS doctors CASCADE;
+
+CREATE TABLE doctors (
+  doctor_id    SERIAL PRIMARY KEY,
+  first_name   VARCHAR(50) NOT NULL,
+  last_name    VARCHAR(50) NOT NULL,
+  specialization VARCHAR(100)
+);
+CREATE TABLE patients (
+  patient_id   SERIAL PRIMARY KEY,
+  first_name   VARCHAR(50) NOT NULL,
+  last_name    VARCHAR(50) NOT NULL,
+  age          INTEGER NOT NULL,
+  doctor_id    INTEGER REFERENCES doctors(doctor_id)
+);
+
+CREATE TABLE nurses (
+  nurse_id     SERIAL PRIMARY KEY,
+  first_name   VARCHAR(50),
+  last_name    VARCHAR(50),
+  shift        VARCHAR(20) -- e.g. 'Morning', 'Afternoon', 'Night'
+);
+
+CREATE TABLE treatments (
+  treatment_id SERIAL PRIMARY KEY,
+  patient_id   INTEGER REFERENCES patients(patient_id),
+  doctor_id    INTEGER REFERENCES doctors(doctor_id),
+  nurse_id     INTEGER REFERENCES nurses(nurse_id),
+  treatment_type VARCHAR(100),
+  treatment_date DATE
+);
+CREATE TABLE medication_stock (
+  medication_id   INTEGER PRIMARY KEY,
+  medication_name VARCHAR(100) NOT NULL,
+  quantity        INTEGER NOT NULL
+);
+
+INSERT INTO doctors (first_name, last_name, specialization) VALUES
+('John','Smith','Cardiology'),    -- doctor_id = 1
+('Alice','Brown','Geriatrics'),   -- 2
+('Emily','Davis','Cardiology'),   -- 3
+('Robert','Wilson','Neurology'),  -- 4
+('Laura','Green','General Practice'); -- 5
+
+INSERT INTO patients (first_name, last_name, age, doctor_id) VALUES
+('Mary','Johnson',78,2),   -- 1
+('Peter','Lee',82,1),      -- 2
+('Susan','Clark',85,1),    -- 3
+('Tom','Harris',90,1),     -- 4
+('Linda','Martin',76,3),   -- 5
+('George','Young',88,1),   -- 6
+('Nancy','King',65,4),     -- 7
+('Kevin','Wright',72,2),   -- 8
+('Diana','Scott',83,1),    -- 9
+('Mark','Allen',59,5),     -- 10
+('Olivia','Hill',84,3),    -- 11
+('Henry','Adams',70,5),    -- 12  -- <-- will keep this patient with NO treatments (for Q17)
+('Linda','White',81,1),    -- 13
+('Paula','Roberts',69,3),  -- 14
+('Frank','Moore',92,2),    -- 15
+('Ethan','Evans',55,3);    -- 16
+
+INSERT INTO nurses (first_name, last_name, shift) VALUES
+('Sarah','Nurse','Morning'),   -- 1
+('Tom','Care','Afternoon'),    -- 2
+('Nancy','Assist','Morning'),  -- 3
+('Olivia','Aid','Night');      -- 4
+
+INSERT INTO treatments (patient_id, doctor_id, nurse_id, treatment_type, treatment_date) VALUES
+(1, 2, 1, 'Physiotherapy', '2025-01-10'),
+(1, 2, 1, 'Physiotherapy', '2025-08-05'), -- second (later) treatment for patient 1
+(2, 1, 2, 'Cardiac Check', '2025-02-20'),
+(3, 1, 1, 'Medication Review', '2025-03-15'),
+(4, 1, 3, 'Surgery Follow-up', '2025-04-12'),
+(5, 3, 2, 'Vaccination', '2025-01-20'),
+(6, 1, 1, 'Medication Review', '2025-05-01'),
+(7, 4, 2, 'Physiotherapy', '2025-02-14'),
+(8, 2, 1, 'General Check', '2025-03-01'),
+(9, 1, 1, 'Cardiac Check', '2025-06-20'),
+(11,3, 2, 'Vaccination','2025-06-21'),
+(13,1,1, 'Cardiac Check', '2025-07-02'),
+(15,2,2, 'General Check', '2025-07-10');
+
+INSERT INTO medication_stock (medication_id, medication_name, quantity) VALUES
+(1, 'Aspirin', 50),
+(2, 'Paracetamol', 20),
+(3, 'Insulin', 5),
+(4, 'Atorvastatin', 30),
+(5, 'Lisinopril', 40);
+
+
+SELECT CONCAT(first_name,' ',last_name) AS patient_name, age
+FROM patients;
+
+SELECT doctor_id, CONCAT(first_name,' ',last_name) AS doctor_name, specialization
+FROM doctors
+WHERE specialization ILIKE 'Cardiology';
+
+SELECT patient_id, CONCAT(first_name,' ',last_name) AS patient_name, age
+FROM patients
+WHERE age > 80;
+
+
+SELECT patient_id, CONCAT(first_name,' ',last_name) AS patient_name, age
+FROM patients
+ORDER BY age ASC;
+
+
+SELECT specialization, COUNT(*) AS doctor_count
+FROM doctors
+GROUP BY specialization
+ORDER BY doctor_count DESC;
+
+
+SELECT p.patient_id,
+       CONCAT(p.first_name,' ',p.last_name) AS patient_name,
+       d.doctor_id,
+       CONCAT(d.first_name,' ',d.last_name) AS doctor_name
+FROM patients p
+LEFT JOIN doctors d ON p.doctor_id = d.doctor_id
+ORDER BY p.patient_id;
+
+
+SELECT t.treatment_id,
+       t.treatment_type,
+       t.treatment_date,
+       CONCAT(p.first_name,' ',p.last_name) AS patient_name,
+       CONCAT(d.first_name,' ',d.last_name) AS doctor_name,
+       CONCAT(n.first_name,' ',n.last_name) AS nurse_name
+FROM treatments t
+JOIN patients p ON t.patient_id = p.patient_id
+JOIN doctors d ON t.doctor_id = d.doctor_id
+LEFT JOIN nurses n ON t.nurse_id = n.nurse_id
+ORDER BY t.treatment_date;
+
+
+SELECT d.doctor_id,
+       CONCAT(d.first_name,' ',d.last_name) AS doctor_name,
+       COUNT(p.patient_id) AS num_patients
+FROM doctors d
+LEFT JOIN patients p ON p.doctor_id = d.doctor_id
+GROUP BY d.doctor_id, doctor_name
+ORDER BY num_patients DESC;
+
+
+SELECT ROUND(AVG(age)::numeric,2) AS average_age
+FROM patients;
+
+SELECT treatment_type
+FROM treatments
+GROUP BY treatment_type
+ORDER BY COUNT(*) DESC
+LIMIT 1;
+
+
+SELECT CONCAT(first_name,' ',last_name) AS patient_name, age
+FROM patients
+WHERE age > (SELECT AVG(age) FROM patients);
+
+
+SELECT d.doctor_id, CONCAT(d.first_name,' ',d.last_name) AS doctor_name, COUNT(p.patient_id) AS patient_count
+FROM doctors d
+JOIN patients p ON p.doctor_id = d.doctor_id
+GROUP BY d.doctor_id, doctor_name
+HAVING COUNT(p.patient_id) > 5
+ORDER BY patient_count DESC;
+
+
+SELECT t.treatment_id,
+       t.treatment_type,
+       t.treatment_date,
+       CONCAT(p.first_name,' ',p.last_name) AS patient_name,
+       CONCAT(n.first_name,' ',n.last_name) AS nurse_name,
+       n.shift
+FROM treatments t
+JOIN nurses n ON t.nurse_id = n.nurse_id
+JOIN patients p ON t.patient_id = p.patient_id
+WHERE n.shift ILIKE 'Morning'
+ORDER BY t.treatment_date;
+
+
+SELECT treatment_id, patient_id, treatment_type, treatment_date
+FROM (
+  SELECT t.*,
+         ROW_NUMBER() OVER (PARTITION BY t.patient_id ORDER BY t.treatment_date DESC) AS rn
+  FROM treatments t
+) sub
+WHERE rn = 1
+ORDER BY patient_id;
+
+
+SELECT d.doctor_id,
+       CONCAT(d.first_name,' ',d.last_name) AS doctor_name,
+       ROUND(AVG(p.age)::numeric,2) AS avg_patient_age
+FROM doctors d
+LEFT JOIN patients p ON p.doctor_id = d.doctor_id
+GROUP BY d.doctor_id, doctor_name
+ORDER BY avg_patient_age DESC NULLS LAST;
+
+
+SELECT CONCAT(d.first_name,' ',d.last_name) AS doctor_name, COUNT(p.patient_id) AS patient_count
+FROM doctors d
+JOIN patients p ON p.doctor_id = d.doctor_id
+GROUP BY doctor_name
+HAVING COUNT(p.patient_id) > 3
+ORDER BY patient_count DESC;
+
+
+SELECT CONCAT(first_name,' ',last_name) AS patient_name, patient_id
+FROM patients
+WHERE patient_id NOT IN (SELECT DISTINCT patient_id FROM treatments)
+ORDER BY patient_id;
+
+
+SELECT medication_id, medication_name, quantity
+FROM medication_stock
+WHERE quantity < (SELECT AVG(quantity) FROM medication_stock);
+
+
+SELECT d.doctor_id,
+       CONCAT(d.first_name,' ',d.last_name) AS doctor_name,
+       p.patient_id,
+       CONCAT(p.first_name,' ',p.last_name) AS patient_name,
+       p.age,
+       RANK() OVER (PARTITION BY d.doctor_id ORDER BY p.age DESC) AS age_rank
+FROM doctors d
+JOIN patients p ON p.doctor_id = d.doctor_id
+ORDER BY d.doctor_id, age_rank;
+
+
+WITH doctor_max_age AS (
+  SELECT d.doctor_id,
+         d.specialization,
+         CONCAT(d.first_name,' ',d.last_name) AS doctor_name,
+         MAX(p.age) AS max_patient_age
+  FROM doctors d
+  JOIN patients p ON p.doctor_id = d.doctor_id
+  GROUP BY d.doctor_id, d.specialization, doctor_name
+)
+SELECT specialization, doctor_id, doctor_name, max_patient_age
+FROM (
+  SELECT *,
+         ROW_NUMBER() OVER (PARTITION BY specialization ORDER BY max_patient_age DESC) AS rn
+  FROM doctor_max_age
+) t
+WHERE rn = 1
+ORDER BY specialization;
